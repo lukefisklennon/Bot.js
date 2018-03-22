@@ -1,0 +1,8 @@
+{
+  "name": "bot.js",
+  "version": "1.0.0",
+  "description": "Build your own bot by defining commands as JavaScript snippets",
+  "main": "index.js",
+  "author": "iO Ninja",
+  "license": "MIT"
+}
