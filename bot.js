@@ -1,0 +1,288 @@
+// https://discordapp.com/oauth2/authorize?client_id=426235733594996748&scope=bot
+
+var vm = require("vm");
+var fs = require("fs");
+var Discord = require("discord.js");
+var client = new Discord.Client();
+
+var prefix = "$";
+var guild = process.argv[3];
+var dataPath = __dirname + "/data/" + guild + ".json"
+var saveInterval = 60 * 1000;
+var commandNames = ["run", "create", "edit", "show", "info", "delete", "export", "import", "list", "help"];
+
+var commands = {};
+var globalData = {};
+
+loadData();
+
+function run(command, options, message) {
+	try {
+		switch (command) {
+		case "run":
+			options.shift();
+			var code = extractCode(options.join(" "));
+			runScript(createScript(code, "<anonymous>"), message, null);
+			break;
+		case "create":
+			var name = options[0];
+			options.shift();
+			var code = extractCode(options.join(" "));
+			if (commandNames.indexOf(name) != -1) {
+				message.channel.send("Cannot create command `" + name + "`: it is a reserved name");
+			}
+			if (name in commands) {
+				message.channel.send("Cannot create command `" + name + "`: it already exists");
+			}
+			var success = true;
+			try {
+				commands[name] = {
+					script: createScript(code, name),
+					code: code,
+					info: ""
+				};
+			} catch(e) {
+				success = false;
+				message.channel.send("```" + formatError(e) + "```");
+			}
+			if (success) {
+				message.channel.send("Created command `" + name + "`");
+			}
+			break;
+		case "edit":
+			var name = options[0];
+			options.shift();
+			var code = extractCode(options.join(" "));
+			if (name in commands) {
+				var success = true;
+				try {
+					commands[name].script = createScript(code, name);
+					commands[name].code = code;
+				} catch(e) {
+					success = false;
+					message.channel.send("```" + formatError(e) + "```");
+				}
+				if (success) {
+					message.channel.send("Edited command `" + name + "`");
+				}
+			} else {
+				message.channel.send("Command not found: `" + name + "`");
+			}
+			break;
+		case "show":
+			var name = options[0];
+			if (name in commands) {
+				message.channel.send("```JS\n" + commands[name].code + "\n```");
+			}
+			break;
+		case "info":
+			var name = options[0];
+			if (name in commands) {
+				if (options.length > 1) {
+					options.shift();
+					var info = options.join(" ").trim();
+					commands[name].info = info;
+					message.channel.send("Saved info for `" + name + "`");
+				} else {
+					if (commands[name].info != "") {
+						message.channel.send("```" + name + ": " + commands[name].info + "```");
+					} else {
+						message.channel.send("No info set for `" + name + "`");
+					}
+				}
+			} else {
+				message.channel.send("Command not found: `" + name + "`");
+			}
+			break;
+		case "delete":
+			var name = options[0];
+			if (name in commands) {
+				delete commands[name];
+				message.channel.send("Deleted command `" + name + "`");
+			} else {
+				message.channel.send("Command not found: `" + name + "`");
+			}
+			break;
+		case "export":
+			var string = exportData();
+			message.channel.send("```JSON\n" + string + "\n```");
+			break;
+		case "import":
+			var data = extractCode(options.join(" "));
+			var error = importData(data);
+			if (error != null) {
+				message.channel.send(error);
+			} else {
+				message.channel.send("Successfully imported data");
+			}
+			break;
+		case "list":
+			if (Object.keys(commands).length > 0) {
+				var string = "```\n";
+				for (var command in commands) {
+					string += command;
+					if (commands[command].info != "") {
+						string += ": " + commands[command].info;
+					}
+					string += "\n";
+				}
+				string += "```";
+				message.channel.send(string);
+			} else {
+				message.channel.send("No commands found");
+			}
+			break;
+		case "help":
+			message.channel.send("Help page coming soon!");
+			break;
+		default:
+			if (command in commands) {
+				message.content = options.join(" ");
+				runScript(commands[command].script, message, command);
+			} else {
+				message.channel.send("Command not found: `" + command + "`");
+			}
+			break;
+		}
+	} catch(e) {
+		console.log(e);
+		message.channel.send("Malformed input");
+	}
+}
+
+client.on("ready", function() {
+	console.log("[" + guild + "] Connected to Discord");
+	client.user.setPresence({game: {name: "$help", type: 0}});
+});
+
+client.on("message", function(message) {
+	if (message.author != client.user && message.channel.guild.id == guild) {
+		var text = message.content;
+		if (text[0] == prefix) {
+			var parts = text.split("\n").join(" \n").split(" ");
+			var command = parts[0].substring(1);
+			parts.shift();
+			run(command, parts, message);
+		}
+	}
+});
+
+client.login(process.argv[2]);
+
+setInterval(saveData, saveInterval);
+
+var exited = false;
+function exitHandler() {
+	if (!exited) {
+		exited = true;
+		saveData();
+		console.log("[" + guild + "] Exiting process");
+		process.exit();
+	}
+}
+
+process.on("exit", exitHandler);
+process.on("SIGTERM", exitHandler);
+process.on("SIGHUP", exitHandler);
+process.on("SIGINT", exitHandler);
+process.on("SIGUSR1", exitHandler);
+process.on("SIGUSR2", exitHandler);
+process.on("uncaughtException", exitHandler);
+
+function loadData() {
+	if (fs.existsSync(dataPath)) {
+    	importData(fs.readFileSync(dataPath, "utf8"));
+	} else {
+		saveData();
+	}
+}
+
+function saveData() {
+	fs.writeFileSync(dataPath, exportData());
+}
+
+function importData(data) {
+	data = JSON.parse(data);
+	for (var command in data.commands) {
+		try {
+			commands[command] = {
+				script: createScript(data.commands[command].code, command),
+				code: data.commands[command].code,
+				info: data.commands[command].info
+			};
+		} catch(e) {
+			return "Error when importing `" + command + "`\n```" + formatError(e) + "```";
+		}
+		for (var g in data.global) {
+			globalData[g] = data.global[g];
+		}
+	}
+	return null;
+}
+
+function exportData() {
+	var data = {};
+	data.commands = {};
+	data.global = globalData;
+	for (var command in commands) {
+		data.commands[command] = {
+			code: commands[command].code,
+			info: commands[command].info
+		};
+	}
+	return JSON.stringify(data);
+}
+
+function createScript(code, name) {
+	return new vm.Script(code, {
+		filename: name,
+		timeout: 500,
+		contextName: name,
+		displayErrors: true
+	});
+}
+
+function runScript(script, message, command) {
+	try {
+		script.runInNewContext({
+			command: command,
+			message: message,
+			text: message.content,
+			args: message.content.split(" "),
+			guild: message.channel.guild,
+			channel: message.channel,
+			user: message.author,
+			member: message.member,
+			global: globalData,
+			Buffer: Buffer,
+			clearImmediate: clearImmediate,
+			clearInterval: clearInterval,
+			clearTimeout: clearTimeout,
+			setImmediate: setImmediate,
+			setInterval: setInterval,
+			setTimeout: setTimeout
+		});
+	} catch(e) {
+		message.channel.send("```" + formatError(e) + "```");
+	}
+}
+
+function extractCode(code) {
+	code = code.trim();
+	if (code.substring(0, 13) == "```JavaScript") {
+		code = code.substring(13, code.length - 3);
+	} else if (code.substring(0, 7) == "```JSON") {
+		code = code.substring(7, code.length - 3);
+	} else if (code.substring(0, 5) == "```JS") {
+		code = code.substring(5, code.length - 3);
+	} else if (code.substring(0, 3) == "```") {
+		code = code.substring(3, code.length - 3);
+	}
+	code = code.trim();
+	return code;
+}
+
+function formatError(e) {
+	var parts = e.stack.split("\n\n");
+	return parts[0] + "\n" + parts[1].split("\n")[0];
+}

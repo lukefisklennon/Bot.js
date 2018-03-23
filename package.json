@@ -1,6 +1,6 @@
 {
   "name": "bot.js",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "description": "Build your own Discord bot by defining commands as JavaScript snippets",
   "main": "index.js",
   "author": "iO Ninja",
