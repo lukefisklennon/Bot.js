@@ -38,7 +38,7 @@ This guide is for Terminal users, but you can complete the installation using an
 
 ## Usage
 
-Find the documentation here (coming soon).
+Find the documentation [here](https://github.com/iONinja/Bot.js/blob/master/usage.md) (coming soon).
 
 ## License
 
