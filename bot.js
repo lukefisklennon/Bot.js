@@ -1,4 +1,6 @@
-// https://discordapp.com/oauth2/authorize?client_id=426235733594996748&scope=bot
+/*
+{"commands":{"argstest":{"code":"channel.send(args);","info":""},"sum":{"code":" \nvar result = 0; \nfor (var i = 0; i < args.length; i++) { \n    result += Number(args[i]); \n} \nchannel.send(args.join(\" + \") + \" = \" + result); \n","info":""},"calc":{"code":" \nargs = message.content.split(\" \"); \nif (args[1] == \"+\") { \n    channel.send(Number(args[0]) + Number(args[2])); } \nelse if (args[1] == \"-\"){ \n    channel.send(Number(args[0]) - Number(args[2])); } \nelse if (args[1] == \"*\") { \n    channel.send(Number(args[0]) * Number(args[2])); } \nelse if (args[1] == \"/\") { \n    channel.send(Number(args[0]) / Number(args[2])); } \nelse if (args[1] == \"%\") { \n    channel.send(Number(args[0]) / Number(args[2])); } \nelse { \n    channel.send(\"wtf r u talking about\"); } \n","info":""},"remind":{"code":"var time = args[0]; \nargs.shift(); \nvar m = args.join(\" \"); \nsetTimeout(function() { \n    channel.send(m); \n}, time * 1000);","info":""}},"global":{"count":2}}
+*/
 
 var vm = require("vm");
 var fs = require("fs");
@@ -108,7 +110,7 @@ function run(command, options, message) {
 			message.channel.send("```JSON\n" + string + "\n```");
 			break;
 		case "import":
-			var data = extractCode(options.join(" "));
+			var data = options.join(" ");
 			var error = importData(data);
 			if (error != null) {
 				message.channel.send(error);
@@ -151,7 +153,7 @@ function run(command, options, message) {
 }
 
 client.on("ready", function() {
-	console.log("[" + guild + "] Connected to Discord");
+	console.log("[" + guild + "] " + "Connected to Discord");
 	client.user.setPresence({game: {name: "$help", type: 0}});
 });
 
@@ -171,19 +173,13 @@ client.login(process.argv[2]);
 
 setInterval(saveData, saveInterval);
 
-var exited = false;
 function exitHandler() {
-	if (!exited) {
-		exited = true;
-		saveData();
-		console.log("[" + guild + "] Exiting process");
-		process.exit();
-	}
+	saveData();
+	console.log("[" + guild + "] Process exiting");
+	process.exit();
 }
 
 process.on("exit", exitHandler);
-process.on("SIGTERM", exitHandler);
-process.on("SIGHUP", exitHandler);
 process.on("SIGINT", exitHandler);
 process.on("SIGUSR1", exitHandler);
 process.on("SIGUSR2", exitHandler);
@@ -270,15 +266,12 @@ function runScript(script, message, command) {
 function extractCode(code) {
 	code = code.trim();
 	if (code.substring(0, 13) == "```JavaScript") {
-		code = code.substring(13, code.length - 3);
-	} else if (code.substring(0, 7) == "```JSON") {
-		code = code.substring(7, code.length - 3);
+		code = code.substring(5, code.length - 3);
 	} else if (code.substring(0, 5) == "```JS") {
 		code = code.substring(5, code.length - 3);
 	} else if (code.substring(0, 3) == "```") {
 		code = code.substring(3, code.length - 3);
 	}
-	code = code.trim();
 	return code;
 }
 
