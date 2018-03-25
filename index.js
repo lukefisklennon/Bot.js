@@ -5,7 +5,7 @@ var client = new Discord.Client();
 var servers = {};
 
 client.on("ready", function() {
-	console.log("[master] Connected to Discord");
+	console.log("Connected to Discord");
 	var guilds = client.guilds.keyArray();
 	for (var i = 0; i < guilds.length; i++) {
 		fork(guilds[i]);
@@ -26,7 +26,8 @@ client.on("guildDelete", function(guild) {
 });
 
 function fork(guild) {
-	servers[guild] = childProcess.fork(__dirname + "/bot.js", [process.argv[2], guild]);
+	// servers[guild] = childProcess.fork(__dirname + "/bot.js", [process.argv[2], guild]);
+	servers[guild] = require(__dirname + "/bot.js");
 }
 
 client.login(process.argv[2]);
